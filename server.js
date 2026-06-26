@@ -10,8 +10,8 @@ app.use(express.static(path.join(__dirname)));
 
 const pool = mysql.createPool({
   host: 'localhost',
-  user: 'root',         // seu usuário MySQL
-  password: '',         // sua senha MySQL
+  user: 'root',   // seu usuario banco de dados
+  password: 'Binho201106!', // sua senha banco de dados
   database: 'doceria',
   waitForConnections: true,
   connectionLimit: 10,
@@ -19,13 +19,11 @@ const pool = mysql.createPool({
 
 // ── ITENS (doces) ─────────────────────────────────────────────
 
-// Listar todos os doces (sem pedido)
 app.get('/itens', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM ITEM WHERE id_pedido IS NULL');
+  const [rows] = await pool.query('SELECT * FROM ITEM');
   res.json(rows);
 });
 
-// Adicionar doce
 app.post('/itens', async (req, res) => {
   const { nome, preco, qtd_estoque, data_validade } = req.body;
   const [result] = await pool.query(
@@ -35,15 +33,22 @@ app.post('/itens', async (req, res) => {
   res.json({ id: result.insertId, nome, preco, qtd_estoque, data_validade });
 });
 
-// Remover doce
-app.delete('/itens/:id', async (req, res) => {
-  await pool.query('DELETE FROM ITEM WHERE id = ? AND id_pedido IS NULL', [req.params.id]);
+app.patch('/itens/:id', async (req, res) => {
+  const { nome, preco, data_validade } = req.body;
+  await pool.query(
+    'UPDATE ITEM SET nome = ?, preco = ?, data_validade = ? WHERE id = ?',
+    [nome, preco, data_validade || null, req.params.id]
+  );
   res.json({ ok: true });
 });
 
-// Atualizar quantidade em estoque
+app.delete('/itens/:id', async (req, res) => {
+  await pool.query('DELETE FROM ITEM WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
 app.patch('/itens/:id/estoque', async (req, res) => {
-  const { quantidade } = req.body; // positivo = adicionar, negativo = remover
+  const { quantidade } = req.body;
   const [rows] = await pool.query('SELECT qtd_estoque FROM ITEM WHERE id = ?', [req.params.id]);
   if (!rows.length) return res.status(404).json({ erro: 'Item não encontrado' });
   const nova = rows[0].qtd_estoque + quantidade;
@@ -54,7 +59,6 @@ app.patch('/itens/:id/estoque', async (req, res) => {
 
 // ── PEDIDOS ───────────────────────────────────────────────────
 
-// Listar pedidos (com vendedor)
 app.get('/pedidos', async (req, res) => {
   const [rows] = await pool.query(`
     SELECT p.*, vp.cpf_vendedor, v.nome AS nome_vendedor
@@ -66,22 +70,23 @@ app.get('/pedidos', async (req, res) => {
   res.json(rows);
 });
 
-// Buscar itens de um pedido
 app.get('/pedidos/:id/itens', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM ITEM WHERE id_pedido = ?', [req.params.id]);
+  const [rows] = await pool.query(`
+    SELECT ip.id, ip.qtd, ip.preco_unitario, i.nome, i.data_validade
+    FROM ITEM_PEDIDO ip
+    JOIN ITEM i ON ip.id_item = i.id
+    WHERE ip.id_pedido = ?
+  `, [req.params.id]);
   res.json(rows);
 });
 
-// Criar pedido
 app.post('/pedidos', async (req, res) => {
   const { nome_cliente, contato_cliente, cpf_vendedor, itens } = req.body;
-  // itens = [{ id_item, qtd }]
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    // Verifica estoque e calcula total
     let total = 0;
     for (const it of itens) {
       const [[item]] = await conn.query('SELECT * FROM ITEM WHERE id = ?', [it.id_item]);
@@ -90,28 +95,23 @@ app.post('/pedidos', async (req, res) => {
       total += item.preco * it.qtd;
     }
 
-    // Cria pedido
     const [result] = await conn.query(
       'INSERT INTO PEDIDO (nome_cliente, contato_cliente, valorTotal) VALUES (?, ?, ?)',
       [nome_cliente, contato_cliente, total]
     );
     const id_pedido = result.insertId;
 
-    // Vincula vendedor
     await conn.query(
       'INSERT INTO VENDEDOR_PEDIDO (cpf_vendedor, id_pedido) VALUES (?, ?)',
       [cpf_vendedor, id_pedido]
     );
 
-    // Registra itens no pedido e desconta estoque
     for (const it of itens) {
       const [[item]] = await conn.query('SELECT * FROM ITEM WHERE id = ?', [it.id_item]);
-      // Insere novo registro de item no pedido
       await conn.query(
-        'INSERT INTO ITEM (nome, preco, qtd_estoque, data_validade, id_pedido, qtdItens) VALUES (?, ?, ?, ?, ?, ?)',
-        [item.nome, item.preco, 0, item.data_validade, id_pedido, it.qtd]
+        'INSERT INTO ITEM_PEDIDO (id_pedido, id_item, qtd, preco_unitario) VALUES (?, ?, ?, ?)',
+        [id_pedido, it.id_item, it.qtd, item.preco]
       );
-      // Desconta estoque do item original
       await conn.query(
         'UPDATE ITEM SET qtd_estoque = qtd_estoque - ? WHERE id = ?',
         [it.qtd, it.id_item]
@@ -128,28 +128,24 @@ app.post('/pedidos', async (req, res) => {
   }
 });
 
-// Atualizar status do pedido
 app.patch('/pedidos/:id/status', async (req, res) => {
   const { status } = req.body;
   await pool.query('UPDATE PEDIDO SET status = ? WHERE id = ?', [status, req.params.id]);
   res.json({ ok: true });
 });
 
-// Remover pedido (devolve estoque)
 app.delete('/pedidos/:id', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    // Itens do pedido
-    const [itens] = await conn.query('SELECT * FROM ITEM WHERE id_pedido = ?', [req.params.id]);
+    const [itens] = await conn.query('SELECT * FROM ITEM_PEDIDO WHERE id_pedido = ?', [req.params.id]);
     for (const it of itens) {
-      // Devolve ao item de estoque pelo nome
       await conn.query(
-        'UPDATE ITEM SET qtd_estoque = qtd_estoque + ? WHERE nome = ? AND id_pedido IS NULL',
-        [it.qtdItens, it.nome]
+        'UPDATE ITEM SET qtd_estoque = qtd_estoque + ? WHERE id = ?',
+        [it.qtd, it.id_item]
       );
     }
-    await conn.query('DELETE FROM ITEM WHERE id_pedido = ?', [req.params.id]);
+    await conn.query('DELETE FROM ITEM_PEDIDO WHERE id_pedido = ?', [req.params.id]);
     await conn.query('DELETE FROM VENDEDOR_PEDIDO WHERE id_pedido = ?', [req.params.id]);
     await conn.query('DELETE FROM PEDIDO WHERE id = ?', [req.params.id]);
     await conn.commit();

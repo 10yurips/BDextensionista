@@ -28,11 +28,18 @@ CREATE TABLE ITEM (
   nome VARCHAR(100) NOT NULL,
   preco DECIMAL(10,2) NOT NULL,
   qtd_estoque INT DEFAULT 0,
-  data_validade DATE,
-  id_pedido INT,
-  qtdItens INT DEFAULT 0,
-  FOREIGN KEY (id_pedido) REFERENCES PEDIDO(id)
+  data_validade DATE
 );
 
--- Vendedor 
-INSERT INTO VENDEDOR (cpf, nome, contato) VALUES ('000.000.000-00', 'Vendedor Teste', 'teste@email.com');item
+CREATE TABLE ITEM_PEDIDO (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  id_pedido INT NOT NULL,
+  id_item INT NOT NULL,
+  qtd INT NOT NULL,
+  preco_unitario DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (id_pedido) REFERENCES PEDIDO(id),
+  FOREIGN KEY (id_item) REFERENCES ITEM(id)
+);
+
+-- Vendedor
+INSERT INTO VENDEDOR (cpf, nome, contato) VALUES ('000.000.000-00', 'Vendedor Teste', 'teste@email.com');

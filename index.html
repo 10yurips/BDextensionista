@@ -103,7 +103,7 @@ async function carregarEstoque() {
   const tbody = document.getElementById('tbody-estoque');
   if (!itens.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhum doce cadastrado.</td></tr>'; return; }
   tbody.innerHTML = itens.map(it => `
-    <tr>
+    <tr id="row-${it.id}" data-nome="${it.nome.replace(/"/g, '&quot;')}" data-preco="${it.preco}" data-val="${it.data_validade || ''}">
       <td>${it.nome}</td>
       <td>R$ ${parseFloat(it.preco).toFixed(2)}</td>
       <td>
@@ -115,6 +115,7 @@ async function carregarEstoque() {
           <input type="number" id="qty-${it.id}" value="1" min="1" />
           <button class="btn btn-outline btn-sm" onclick="ajustarEstoque(${it.id}, 1)">+ Add</button>
           <button class="btn btn-outline btn-sm" onclick="ajustarEstoque(${it.id}, -1)">− Rem</button>
+          <button class="btn btn-outline btn-sm" onclick="editarDoce(${it.id})">Editar</button>
           <button class="btn btn-danger btn-sm" onclick="removerDoce(${it.id})">Excluir</button>
         </div>
       </td>
@@ -149,6 +150,37 @@ async function adicionarDoce() {
   await fetch(`${API}/itens`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nome, preco, qtd_estoque: qtd, data_validade: val || null }) });
   ['nome-doce','preco-doce','qtd-doce','val-doce'].forEach(id => document.getElementById(id).value = '');
   toast('Doce adicionado!');
+  carregarEstoque();
+}
+
+function editarDoce(id) {
+  const row = document.getElementById('row-' + id);
+  const nome = row.dataset.nome;
+  const preco = row.dataset.preco;
+  const val = row.dataset.val;
+  row.cells[0].innerHTML = `<input id="edit-nome-${id}" value="${nome}" style="width:100%" />`;
+  row.cells[1].innerHTML = `<input id="edit-preco-${id}" type="number" step="0.01" value="${preco}" style="width:80px" />`;
+  row.cells[3].innerHTML = `<input id="edit-val-${id}" type="date" value="${val}" />`;
+  row.cells[4].innerHTML = `
+    <div class="qty-row">
+      <button class="btn btn-primary btn-sm" onclick="salvarEdicao(${id})">Salvar</button>
+      <button class="btn btn-outline btn-sm" onclick="carregarEstoque()">Cancelar</button>
+    </div>`;
+}
+
+async function salvarEdicao(id) {
+  const nome = document.getElementById('edit-nome-' + id).value.trim();
+  const preco = parseFloat(document.getElementById('edit-preco-' + id).value);
+  const data_validade = document.getElementById('edit-val-' + id).value;
+  if (!nome || isNaN(preco)) return toast('Preencha nome e preço.', false);
+  const res = await fetch(`${API}/itens/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome, preco, data_validade: data_validade || null })
+  });
+  const data = await res.json();
+  if (data.erro) return toast(data.erro, false);
+  toast('Doce atualizado!');
   carregarEstoque();
 }
 
