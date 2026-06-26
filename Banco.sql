@@ -15,20 +15,21 @@ CREATE TABLE PEDIDO (
   valorTotal DECIMAL(10,2) DEFAULT 0
 );
 
-CREATE TABLE VENDEDOR_PEDIDO (
-  cpf_vendedor VARCHAR(14),
-  id_pedido INT,
-  PRIMARY KEY (cpf_vendedor, id_pedido),
-  FOREIGN KEY (cpf_vendedor) REFERENCES VENDEDOR(cpf),
-  FOREIGN KEY (id_pedido) REFERENCES PEDIDO(id)
-);
-
 CREATE TABLE ITEM (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nome VARCHAR(100) NOT NULL,
   preco DECIMAL(10,2) NOT NULL,
   qtd_estoque INT DEFAULT 0,
   data_validade DATE
+);
+
+CREATE TABLE VENDEDOR_PEDIDO (
+  cpf_vendedor VARCHAR(14),
+  id_pedido INT,
+  data_registro DATETIME DEFAULT CURRENT_TIMESTAMP, 
+  PRIMARY KEY (cpf_vendedor, id_pedido),
+  FOREIGN KEY (cpf_vendedor) REFERENCES VENDEDOR(cpf),
+  FOREIGN KEY (id_pedido) REFERENCES PEDIDO(id)
 );
 
 CREATE TABLE ITEM_PEDIDO (

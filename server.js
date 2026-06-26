@@ -61,12 +61,19 @@ app.patch('/itens/:id/estoque', async (req, res) => {
 
 app.get('/pedidos', async (req, res) => {
   const [rows] = await pool.query(`
-    SELECT p.*, vp.cpf_vendedor, v.nome AS nome_vendedor
+    SELECT
+      p.*,
+      vp.cpf_vendedor,
+      vp.data_registro,
+      v.nome AS nome_vendedor
     FROM PEDIDO p
-    LEFT JOIN VENDEDOR_PEDIDO vp ON p.id = vp.id_pedido
-    LEFT JOIN VENDEDOR v ON vp.cpf_vendedor = v.cpf
+    LEFT JOIN VENDEDOR_PEDIDO vp
+      ON p.id = vp.id_pedido
+    LEFT JOIN VENDEDOR v
+      ON vp.cpf_vendedor = v.cpf
     ORDER BY p.id DESC
   `);
+
   res.json(rows);
 });
 
