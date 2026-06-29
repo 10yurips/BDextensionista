@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname)));
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',   // seu usuario banco de dados
-  password: 'Binho201106!', // sua senha banco de dados
+  password: 'root', // sua senha banco de dados
   database: 'doceria',
   waitForConnections: true,
   connectionLimit: 10,
