@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname)));
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',   // seu usuario banco de dados
-  password: 'root', // sua senha banco de dados
+  password: '', // sua senha banco de dados
   database: 'doceria',
   waitForConnections: true,
   connectionLimit: 10,
@@ -60,21 +60,25 @@ app.patch('/itens/:id/estoque', async (req, res) => {
 // ── PEDIDOS ───────────────────────────────────────────────────
 
 app.get('/pedidos', async (req, res) => {
-  const [rows] = await pool.query(`
-    SELECT
-      p.*,
-      vp.cpf_vendedor,
-      vp.data_registro,
-      v.nome AS nome_vendedor
-    FROM PEDIDO p
-    LEFT JOIN VENDEDOR_PEDIDO vp
-      ON p.id = vp.id_pedido
-    LEFT JOIN VENDEDOR v
-      ON vp.cpf_vendedor = v.cpf
-    ORDER BY p.id DESC
-  `);
-
-  res.json(rows);
+  try {
+    const [rows] = await pool.query(`
+      SELECT
+        p.*,
+        vp.cpf_vendedor,
+        vp.data_registro,
+        v.nome AS nome_vendedor
+      FROM PEDIDO p
+      LEFT JOIN VENDEDOR_PEDIDO vp
+        ON p.id = vp.id_pedido
+      LEFT JOIN VENDEDOR v
+        ON vp.cpf_vendedor = v.cpf
+      ORDER BY p.id DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error("Erro ao buscar pedidos:", error);
+    res.status(500).json({ erro: "Erro ao buscar pedidos", detalhes: error.message });
+  }
 });
 
 app.get('/pedidos/:id/itens', async (req, res) => {
