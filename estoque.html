@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doceria — Gestão de Estoque</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <span style="font-size:1.5rem">🍬</span>
+  <h1>Doceria</h1>
+  <nav>
+    <a class="nav-link" href="index.html">🏠 Início</a>
+    <button class="active" onclick="showPage('estoque', this)">Estoque</button>
+    <button onclick="showPage('pedidos', this)">Pedidos</button>
+    <button onclick="showPage('novo-pedido', this)">+ Novo Pedido</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ── ESTOQUE ── -->
+  <div id="page-estoque" class="page active">
+    <div class="card">
+      <h2>Adicionar tipo de doce</h2>
+      <div class="form-row">
+        <input id="nome-doce" placeholder="Nome do doce" />
+        <input id="preco-doce" type="number" step="0.01" placeholder="Preço (R$)" />
+        <input id="qtd-doce" type="number" placeholder="Qtd inicial" />
+        <input id="val-doce" type="date" />
+        <button class="btn btn-primary" onclick="adicionarDoce()">Adicionar</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Estoque atual</h2>
+      <table id="tabela-estoque">
+        <thead><tr><th>Doce</th><th>Preço</th><th>Estoque</th><th>Validade</th><th>Ações</th></tr></thead>
+        <tbody id="tbody-estoque"><tr><td colspan="5" class="empty">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── PEDIDOS ── -->
+  <div id="page-pedidos" class="page">
+    <div class="card">
+      <h2>Pedidos registrados</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Cliente</th><th>Contato</th><th>Vendedor</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="tbody-pedidos"><tr><td colspan="7" class="empty">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── NOVO PEDIDO ── -->
+  <div id="page-novo-pedido" class="page">
+    <div class="card">
+      <h2>Registrar pedido</h2>
+      <div class="form-row">
+        <input id="ped-cliente" placeholder="Nome do cliente" />
+        <input id="ped-contato" placeholder="Contato do cliente" />
+        <select id="ped-vendedor"><option value="">— Selecione o vendedor —</option></select>
+      </div>
+      <h2 style="margin-bottom:0.5rem">Itens do pedido</h2>
+      <div class="items-check" id="itens-check"><p class="empty">Carregando doces...</p></div>
+      <div style="margin-top:1rem; display:flex; gap:0.75rem; align-items:center;">
+        <strong id="total-preview" style="font-size:1rem; color:#3b2a1a;">Total: R$ 0,00</strong>
+        <button class="btn btn-primary" style="margin-left:auto" onclick="registrarPedido()">Registrar pedido</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:3000';
+
+function toast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = ok ? '#3b2a1a' : '#b71c1c';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'estoque') carregarEstoque();
+  if (name === 'pedidos') carregarPedidos();
+  if (name === 'novo-pedido') { carregarEstoque(); carregarVendedores(); }
+}
+
+// ── ESTOQUE ──────────────────────────────────────────────────
+
+async function carregarEstoque() {
+  const res = await fetch(`${API}/itens`);
+  const itens = await res.json();
+  const tbody = document.getElementById('tbody-estoque');
+  if (!itens.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhum doce cadastrado.</td></tr>'; return; }
+  tbody.innerHTML = itens.map(it => `
+    <tr id="row-${it.id}" data-nome="${it.nome.replace(/"/g, '&quot;')}" data-preco="${it.preco}" data-val="${it.data_validade || ''}">
+      <td>${it.nome}</td>
+      <td>R$ ${parseFloat(it.preco).toFixed(2)}</td>
+      <td>
+        <span class="badge ${it.qtd_estoque === 0 ? 'badge-zero' : it.qtd_estoque < 5 ? 'badge-low' : 'badge-ok'}">${it.qtd_estoque}</span>
+      </td>
+      <td>${it.data_validade ? new Date(it.data_validade).toLocaleDateString('pt-BR') : '—'}</td>
+      <td>
+        <div class="qty-row">
+          <input type="number" id="qty-${it.id}" value="1" min="1" />
+          <button class="btn btn-outline btn-sm" onclick="ajustarEstoque(${it.id}, 1)">+ Add</button>
+          <button class="btn btn-outline btn-sm" onclick="ajustarEstoque(${it.id}, -1)">− Rem</button>
+          <button class="btn btn-outline btn-sm" onclick="editarDoce(${it.id})">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="removerDoce(${it.id})">Excluir</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  // Atualiza checklist de novo pedido se visível
+  const checkDiv = document.getElementById('itens-check');
+  if (checkDiv) {
+    checkDiv.innerHTML = itens.map(it => `
+      <label class="item-check-row">
+        <input type="checkbox" data-id="${it.id}" data-preco="${it.preco}" data-max="${it.qtd_estoque}" onchange="calcTotal()">
+        <span>${it.nome} — R$ ${parseFloat(it.preco).toFixed(2)} (estoque: ${it.qtd_estoque})</span>
+        <input type="number" id="pedqty-${it.id}" value="1" min="1" max="${it.qtd_estoque}" style="display:none" onchange="calcTotal()">
+      </label>
+    `).join('');
+    // Mostra input de qty quando check marcado
+    checkDiv.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        document.getElementById('pedqty-' + cb.dataset.id).style.display = cb.checked ? 'inline-block' : 'none';
+      });
+    });
+  }
+}
+
+async function adicionarDoce() {
+  const nome = document.getElementById('nome-doce').value.trim();
+  const preco = parseFloat(document.getElementById('preco-doce').value);
+  const qtd = parseInt(document.getElementById('qtd-doce').value) || 0;
+  const val = document.getElementById('val-doce').value;
+  if (!nome || isNaN(preco)) return toast('Preencha nome e preço.', false);
+  await fetch(`${API}/itens`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nome, preco, qtd_estoque: qtd, data_validade: val || null }) });
+  ['nome-doce','preco-doce','qtd-doce','val-doce'].forEach(id => document.getElementById(id).value = '');
+  toast('Doce adicionado!');
+  carregarEstoque();
+}
+
+function editarDoce(id) {
+  const row = document.getElementById('row-' + id);
+  const nome = row.dataset.nome;
+  const preco = row.dataset.preco;
+  const val = row.dataset.val;
+  row.cells[0].innerHTML = `<input id="edit-nome-${id}" value="${nome}" style="width:100%" />`;
+  row.cells[1].innerHTML = `<input id="edit-preco-${id}" type="number" step="0.01" value="${preco}" style="width:80px" />`;
+  row.cells[3].innerHTML = `<input id="edit-val-${id}" type="date" value="${val}" />`;
+  row.cells[4].innerHTML = `
+    <div class="qty-row">
+      <button class="btn btn-primary btn-sm" onclick="salvarEdicao(${id})">Salvar</button>
+      <button class="btn btn-outline btn-sm" onclick="carregarEstoque()">Cancelar</button>
+    </div>`;
+}
+
+async function salvarEdicao(id) {
+  const nome = document.getElementById('edit-nome-' + id).value.trim();
+  const preco = parseFloat(document.getElementById('edit-preco-' + id).value);
+  const data_validade = document.getElementById('edit-val-' + id).value;
+  if (!nome || isNaN(preco)) return toast('Preencha nome e preço.', false);
+  const res = await fetch(`${API}/itens/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome, preco, data_validade: data_validade || null })
+  });
+  const data = await res.json();
+  if (data.erro) return toast(data.erro, false);
+  toast('Doce atualizado!');
+  carregarEstoque();
+}
+
+async function removerDoce(id) {
+  if (!confirm('Remover este doce do estoque?')) return;
+  await fetch(`${API}/itens/${id}`, { method: 'DELETE' });
+  toast('Doce removido.');
+  carregarEstoque();
+}
+
+async function ajustarEstoque(id, sinal) {
+  const qty = parseInt(document.getElementById('qty-' + id).value) || 1;
+  const res = await fetch(`${API}/itens/${id}/estoque`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ quantidade: sinal * qty }) });
+  const data = await res.json();
+  if (data.erro) return toast(data.erro, false);
+  toast(sinal > 0 ? `+${qty} adicionado ao estoque.` : `${qty} removido do estoque.`);
+  carregarEstoque();
+}
+
+// ── PEDIDOS ──────────────────────────────────────────────────
+
+async function carregarPedidos() {
+  const res = await fetch(`${API}/pedidos`);
+  const pedidos = await res.json();
+  const tbody = document.getElementById('tbody-pedidos');
+  if (!pedidos.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhum pedido registrado.</td></tr>'; return; }
+  tbody.innerHTML = pedidos.map(p => `
+    <tr>
+      <td>#${p.id}</td>
+      <td>${p.nome_cliente}</td>
+      <td>${p.contato_cliente || '—'}</td>
+      <td>${p.nome_vendedor || p.cpf_vendedor || '—'}</td>
+      <td>R$ ${parseFloat(p.valorTotal).toFixed(2)}</td>
+      <td>
+        <select class="badge badge-${p.status}" onchange="atualizarStatus(${p.id}, this.value)">
+          ${['pendente','confirmado','entregue','cancelado'].map(s => `<option value="${s}" ${p.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="removerPedido(${p.id})">Cancelar</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function atualizarStatus(id, status) {
+  await fetch(`${API}/pedidos/${id}/status`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+  toast('Status atualizado.');
+}
+
+async function removerPedido(id) {
+  if (!confirm('Cancelar e remover este pedido? O estoque será devolvido.')) return;
+  const res = await fetch(`${API}/pedidos/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.erro) return toast(data.erro, false);
+  toast('Pedido removido. Estoque devolvido.');
+  carregarPedidos();
+}
+
+// ── NOVO PEDIDO ──────────────────────────────────────────────
+
+async function carregarVendedores() {
+  const res = await fetch(`${API}/vendedores`);
+  const vends = await res.json();
+  const sel = document.getElementById('ped-vendedor');
+  sel.innerHTML = '<option value="">— Selecione o vendedor —</option>' + vends.map(v => `<option value="${v.cpf}">${v.nome}</option>`).join('');
+}
+
+function calcTotal() {
+  const checks = document.querySelectorAll('#itens-check input[type=checkbox]:checked');
+  let total = 0;
+  checks.forEach(cb => {
+    const qty = parseInt(document.getElementById('pedqty-' + cb.dataset.id).value) || 1;
+    total += parseFloat(cb.dataset.preco) * qty;
+  });
+  document.getElementById('total-preview').textContent = 'Total: R$ ' + total.toFixed(2);
+}
+
+async function registrarPedido() {
+  const nome_cliente = document.getElementById('ped-cliente').value.trim();
+  const contato_cliente = document.getElementById('ped-contato').value.trim();
+  const cpf_vendedor = document.getElementById('ped-vendedor').value;
+  if (!nome_cliente || !cpf_vendedor) return toast('Preencha cliente e vendedor.', false);
+
+  const checks = document.querySelectorAll('#itens-check input[type=checkbox]:checked');
+  if (!checks.length) return toast('Selecione ao menos um item.', false);
+
+  const itens = Array.from(checks).map(cb => ({
+    id_item: parseInt(cb.dataset.id),
+    qtd: parseInt(document.getElementById('pedqty-' + cb.dataset.id).value) || 1
+  }));
+
+  const res = await fetch(`${API}/pedidos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome_cliente, contato_cliente, cpf_vendedor, itens })
+  });
+  const data = await res.json();
+  if (data.erro) return toast(data.erro, false);
+  toast(`Pedido #${data.id_pedido} registrado! Total: R$ ${parseFloat(data.total).toFixed(2)}`);
+  document.getElementById('ped-cliente').value = '';
+  document.getElementById('ped-contato').value = '';
+  carregarEstoque();
+}
+
+// Init
+carregarEstoque();
+
+// Permite abrir direto numa aba específica via ?page=estoque|pedidos|novo-pedido
+(function() {
+  const pagina = new URLSearchParams(location.search).get('page');
+  if (!pagina) return;
+  const btn = document.querySelector(`nav button[onclick*="showPage('${pagina}'"]`);
+  if (btn) showPage(pagina, btn);
+})();
+</script>
+</body>
+</html>

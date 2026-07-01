@@ -38,3 +38,31 @@
   .item-check-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
   .item-check-row input[type=number] { width: 60px; }
   .empty { color: #a09890; text-align: center; padding: 1.5rem; font-size: 0.9rem; }
+ 
+  /* ── Nav link (usado no dashboard e no botão "Início") ── */
+  .nav-link { display: inline-flex; align-items: center; text-decoration: none; background: transparent; border: 1px solid #f5e6cc55; color: #f5e6cc; padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.9rem; transition: background 0.15s; }
+  .nav-link:hover { background: #f5e6cc22; }
+ 
+  /* ── Dashboard ── */
+  .dash-sub { color: #6b6560; font-size: 0.95rem; margin: -1rem 0 1.5rem; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .stat-card { background: #fff; border: 1px solid #e0dbd2; border-radius: 12px; padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .stat-card .stat-icon { font-size: 1.4rem; }
+  .stat-card .stat-value { font-size: 1.7rem; font-weight: 700; color: #3b2a1a; }
+  .stat-card .stat-label { font-size: 0.85rem; color: #6b6560; }
+  .stat-card.warn .stat-value { color: #bf6000; }
+  .stat-card.danger .stat-value { color: #b71c1c; }
+  .stat-card.ok .stat-value { color: #2e7d32; }
+ 
+  .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .action-card { display: flex; flex-direction: column; gap: 0.4rem; text-decoration: none; background: #faf9f7; border: 1px solid #e0dbd2; border-radius: 12px; padding: 1.25rem 1.5rem; transition: border-color 0.15s, transform 0.15s; }
+  .action-card:hover { border-color: #3b2a1a; transform: translateY(-2px); }
+  .action-card .action-icon { font-size: 1.6rem; }
+  .action-card .action-title { font-weight: 600; color: #3b2a1a; font-size: 1rem; }
+  .action-card .action-desc { font-size: 0.85rem; color: #6b6560; }
+ 
+  .dash-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.5rem; align-items: start; }
+  @media (max-width: 720px) { .dash-grid { grid-template-columns: 1fr; } }
+ 
+  .low-stock-list { display: flex; flex-direction: column; gap: 0.6rem; }
+  .low-stock-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: #faf9f7; border-radius: 8px; font-size: 0.9rem; }
